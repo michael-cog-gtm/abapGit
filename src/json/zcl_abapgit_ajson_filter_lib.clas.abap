@@ -6,8 +6,10 @@ CLASS zcl_abapgit_ajson_filter_lib DEFINITION
   PUBLIC SECTION.
 
     CLASS-METHODS create_empty_filter
+      IMPORTING
+        !iv_keep_zero_numbers TYPE abap_bool DEFAULT abap_false
       RETURNING
-        VALUE(ri_filter) TYPE REF TO zif_abapgit_ajson_filter
+        VALUE(ri_filter)      TYPE REF TO zif_abapgit_ajson_filter
       RAISING
         zcx_abapgit_ajson_error .
     CLASS-METHODS create_path_filter
@@ -44,7 +46,9 @@ CLASS zcl_abapgit_ajson_filter_lib IMPLEMENTATION.
 
 
   METHOD create_empty_filter.
-    CREATE OBJECT ri_filter TYPE lcl_empty_filter.
+    CREATE OBJECT ri_filter TYPE lcl_empty_filter
+      EXPORTING
+        iv_keep_zero_numbers = iv_keep_zero_numbers.
   ENDMETHOD.
 
 

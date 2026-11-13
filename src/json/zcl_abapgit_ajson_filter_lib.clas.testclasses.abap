@@ -3,6 +3,19 @@ CLASS ltcl_filters_test DEFINITION FINAL
   RISK LEVEL HARMLESS
   DURATION SHORT.
   PRIVATE SECTION.
+    METHODS zero_sample_default FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS zero_sample_false FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS zero_sample_keep FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS zero_matrix_default FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS zero_matrix_keep FOR TESTING RAISING zcx_abapgit_ajson_error.
+    METHODS check_zero_sample
+      IMPORTING ii_filter TYPE REF TO zif_abapgit_ajson_filter
+                iv_keep   TYPE abap_bool DEFAULT abap_false
+      RAISING zcx_abapgit_ajson_error.
+    METHODS check_zero_matrix
+      IMPORTING ii_filter TYPE REF TO zif_abapgit_ajson_filter
+                iv_keep   TYPE abap_bool DEFAULT abap_false
+      RAISING zcx_abapgit_ajson_error.
     METHODS empty_filter_simple FOR TESTING RAISING zcx_abapgit_ajson_error.
     METHODS empty_filter_deep FOR TESTING RAISING zcx_abapgit_ajson_error.
     METHODS path_filter FOR TESTING RAISING zcx_abapgit_ajson_error.
@@ -15,6 +28,137 @@ ENDCLASS.
 
 
 CLASS ltcl_filters_test IMPLEMENTATION.
+
+  METHOD zero_sample_default.
+    check_zero_sample( zcl_abapgit_ajson_filter_lib=>create_empty_filter( ) ).
+  ENDMETHOD.
+
+  METHOD zero_sample_false.
+    check_zero_sample( zcl_abapgit_ajson_filter_lib=>create_empty_filter( iv_keep_zero_numbers = abap_false ) ).
+  ENDMETHOD.
+
+  METHOD zero_sample_keep.
+    check_zero_sample(
+      ii_filter = zcl_abapgit_ajson_filter_lib=>create_empty_filter( iv_keep_zero_numbers = abap_true )
+      iv_keep = abap_true ).
+  ENDMETHOD.
+
+  METHOD check_zero_sample.
+    DATA li_json TYPE REF TO zif_abapgit_ajson.
+    DATA li_result TYPE REF TO zif_abapgit_ajson.
+    DATA lv_input TYPE string.
+
+    lv_input = '{"quoteId":"Q-1001","discount":0,"shippingFee":0,"requiresApproval":false,"notes":"","source":null,' &&
+      '"items":[{"amount":0,"description":""},{"amount":25,"description":"Widget"}]}'.
+    li_json = zcl_abapgit_ajson=>parse( lv_input ).
+    li_result = zcl_abapgit_ajson=>create_from(
+      ii_source_json = li_json
+      ii_filter = ii_filter ).
+    IF iv_keep = abap_true.
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->stringify( )
+        exp = '{"discount":0,"items":[{"amount":0},{"amount":25,"description":"Widget"}],' &&
+          '"quoteId":"Q-1001","requiresApproval":false,"shippingFee":0}' ).
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->get_node_type( '/discount' )
+        exp = zif_abapgit_ajson_types=>node_type-number ).
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->get_node_type( '/shippingFee' )
+        exp = zif_abapgit_ajson_types=>node_type-number ).
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->get_node_type( '/items/1/amount' )
+        exp = zif_abapgit_ajson_types=>node_type-number ).
+    ELSE.
+      " {} comes from existing filter runner array re-indexing and is out of scope.
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->stringify( )
+        exp = '{"items":[{}],"quoteId":"Q-1001","requiresApproval":false}' ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zero_matrix_default.
+    check_zero_matrix( zcl_abapgit_ajson_filter_lib=>create_empty_filter( ) ).
+  ENDMETHOD.
+
+  METHOD zero_matrix_keep.
+    check_zero_matrix(
+      ii_filter = zcl_abapgit_ajson_filter_lib=>create_empty_filter( iv_keep_zero_numbers = abap_true )
+      iv_keep = abap_true ).
+  ENDMETHOD.
+
+  METHOD check_zero_matrix.
+    DATA lt_numbers TYPE string_table.
+    DATA lv_number TYPE string.
+    DATA lv_input TYPE string.
+    DATA li_json TYPE REF TO zif_abapgit_ajson.
+    DATA li_result TYPE REF TO zif_abapgit_ajson.
+    DATA lv_expected TYPE string.
+
+    SPLIT '0,0.0,-0,0e0,0e5,25,-25' AT ',' INTO TABLE lt_numbers.
+    LOOP AT lt_numbers INTO lv_number.
+      lv_input = '{"array":[' && lv_number && '],"object":{"n":' && lv_number && '}}'.
+      li_json = zcl_abapgit_ajson=>parse( lv_input ).
+      li_result = zcl_abapgit_ajson=>create_from(
+        ii_source_json = li_json
+        ii_filter = ii_filter ).
+      IF iv_keep = abap_true OR lv_number <> '0'.
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->stringify( )
+          exp = lv_input ).
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->get_node_type( '/object/n' )
+          exp = zif_abapgit_ajson_types=>node_type-number ).
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->get_node_type( '/array/1' )
+          exp = zif_abapgit_ajson_types=>node_type-number ).
+      ELSE.
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->stringify( )
+          exp = '' ).
+      ENDIF.
+
+      li_json = zcl_abapgit_ajson=>parse( lv_number ).
+      li_result = zcl_abapgit_ajson=>create_from(
+        ii_source_json = li_json
+        ii_filter = ii_filter ).
+      IF iv_keep = abap_true OR lv_number <> '0'.
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->stringify( )
+          exp = lv_number ).
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->get_node_type( '' )
+          exp = zif_abapgit_ajson_types=>node_type-number ).
+      ELSE.
+        cl_abap_unit_assert=>assert_equals(
+          act = li_result->stringify( )
+          exp = '' ).
+      ENDIF.
+    ENDLOOP.
+
+    SPLIT 'false,null,"",{},[],[0]' AT ',' INTO TABLE lt_numbers.
+    LOOP AT lt_numbers INTO lv_input.
+      li_json = zcl_abapgit_ajson=>parse( lv_input ).
+      li_result = zcl_abapgit_ajson=>create_from(
+        ii_source_json = li_json
+        ii_filter = ii_filter ).
+      CLEAR lv_expected.
+      IF lv_input = 'false' OR ( lv_input = '[0]' AND iv_keep = abap_true ).
+        lv_expected = lv_input.
+      ENDIF.
+      cl_abap_unit_assert=>assert_equals(
+        act = li_result->stringify( )
+        exp = lv_expected ).
+    ENDLOOP.
+
+    li_json = zcl_abapgit_ajson=>create_empty( ).
+    li_json->set_null( '/n' ).
+    li_result = zcl_abapgit_ajson=>create_from(
+      ii_source_json = li_json
+      ii_filter = ii_filter ).
+    cl_abap_unit_assert=>assert_equals(
+      act = li_result->stringify( )
+      exp = '{"n":null}' ).
+  ENDMETHOD.
 
   METHOD empty_filter_simple.
 
