@@ -5,10 +5,26 @@
 CLASS lcl_empty_filter DEFINITION FINAL.
   PUBLIC SECTION.
     INTERFACES zif_abapgit_ajson_filter.
+    METHODS constructor
+      IMPORTING
+        iv_keep_zero_numbers TYPE abap_bool.
+  PRIVATE SECTION.
+    DATA mv_keep_zero_numbers TYPE abap_bool.
 ENDCLASS.
 
 CLASS lcl_empty_filter IMPLEMENTATION.
+  METHOD constructor.
+    mv_keep_zero_numbers = iv_keep_zero_numbers.
+  ENDMETHOD.
+
   METHOD zif_abapgit_ajson_filter~keep_node.
+
+    IF mv_keep_zero_numbers = abap_true AND
+        iv_visit = zif_abapgit_ajson_filter=>visit_type-value AND
+        is_node-type = zif_abapgit_ajson_types=>node_type-number.
+      rv_keep = abap_true.
+      RETURN.
+    ENDIF.
 
     rv_keep = boolc(
       ( iv_visit = zif_abapgit_ajson_filter=>visit_type-value AND
